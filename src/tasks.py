@@ -1,26 +1,22 @@
-import os
-import luigi
 import csv
+import os
 
+import luigi
+
+from .genres import Genre
 from .movies import get_top_movies
-from .genres import GENRES
 
 
 class LoadTopMovies(luigi.Task):
-    genre = luigi.Parameter()
+    genre = luigi.EnumParameter(enum=Genre)
 
     directory_name = luigi.Parameter(default="movie_data")
 
     @property
     def file_name(self):
-        return f"{self.genre}_movies.csv"
+        return f"{self.genre.value}_movies.csv"
 
     def run(self):
-        if self.genre not in GENRES:
-            raise ValueError(
-                f"Invalid genre value: {self.genre}. Genre must be one of the following: {GENRES}."
-            )
-
         self.output().makedirs()
         movies = get_top_movies(genre=self.genre)
 
