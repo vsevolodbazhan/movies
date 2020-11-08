@@ -19,7 +19,6 @@ class Genre(AutoGenreName):
     BIOGRAPHY = auto()
     COMEDY = auto()
     CRIME = auto()
-    DOCUMENTARY = auto()
     DRAMA = auto()
     FAMILY = auto()
     FANTASY = auto()
@@ -31,7 +30,6 @@ class Genre(AutoGenreName):
     MYSTERY = auto()
     ROMANCE = auto()
     SCIFI = "sci-fi"
-    SHORT = auto()
     SPORT = auto()
     SUPERHERO = auto()
     THRILLER = auto()
