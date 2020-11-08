@@ -18,7 +18,7 @@ class LoadTopMovies(luigi.Task):
     def run(self):
         if self.genre not in GENRES:
             raise ValueError(
-                "Invalid genre value: {self.genre}. Genre must be one of the following: {GENRES}."
+                f"Invalid genre value: {self.genre}. Genre must be one of the following: {GENRES}."
             )
 
         self.output().makedirs()
