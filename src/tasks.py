@@ -12,6 +12,8 @@ from .movies import get_top_movies
 
 
 class LoadTopMovies(luigi.Task):
+    """Download top-50 movies by `genre` and store them in .csv file."""
+
     genre = luigi.EnumParameter(enum=Genre)
 
     directory_name = luigi.Parameter(default="movie_data")
@@ -36,8 +38,10 @@ class LoadTopMovies(luigi.Task):
 
 @requires(LoadTopMovies)
 class CopyMoviesToSQLite(CopyToTable):
-    table = "TopMovie"
-    connection_string = f"sqlite:///top_movies.db"
+    """"Download top-50 movies by `genre` and load them into SQLite."""
+
+    database_name = luigi.Parameter(default="top_movies")
+
     columns = [
         (["id", Integer()], {"primary_key": True, "autoincrement": True}),
         (["title", String()], {}),
@@ -50,6 +54,15 @@ class CopyMoviesToSQLite(CopyToTable):
         (["certificate", String()], {}),
         (["gross", Float()], {}),
     ]
+
+    @property
+    def connection_string(self):
+        return f"sqlite:///{self.database_name}.db"
+
+    @property
+    def table(self):
+        genre = self.genre.value.capitalize().replace("-", "")
+        return f"Top{genre}Movies"
 
     def rows(self):
         with self.input().open("r") as input:
@@ -68,3 +81,16 @@ class CopyMoviesToSQLite(CopyToTable):
                 rows.append([id, *values])
 
             return rows
+
+
+class CopyMultipleGenresMoviesToSQLite(luigi.WrapperTask):
+    """Download top-50 movies by multiple `genres` and load them into SQLite.
+
+    Each genre gets a separate database table.
+    """
+
+    genres = luigi.parameter.EnumListParameter(enum=Genre)
+
+    def requires(self):
+        for genre in self.genres:
+            yield CopyMoviesToSQLite(genre=genre)
