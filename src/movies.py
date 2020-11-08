@@ -29,7 +29,7 @@ class Movie:
 
     @property
     def fields(self):
-        return fields(self)
+        return [field.name for field in fields(self)]
 
 
 def create_page_url(genre: Genre) -> str:
