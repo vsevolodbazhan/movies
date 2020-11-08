@@ -2,6 +2,7 @@ import csv
 import os
 
 import luigi
+from luigi.contrib.sqla import CopyToTable
 
 from .genres import Genre
 from .movies import get_top_movies
@@ -22,6 +23,7 @@ class LoadTopMovies(luigi.Task):
 
         with self.output().open("w") as output:
             writer = csv.writer(output, delimiter=",")
+            writer.writerow(movies[0].fields)
             for movie in movies:
                 writer.writerow(movie.data)
 
