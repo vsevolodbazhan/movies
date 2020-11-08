@@ -4,6 +4,8 @@ from typing import List, Optional, Tuple
 import requests
 from bs4 import BeautifulSoup, ResultSet
 
+from .genres import Genre
+
 __all__ = ["Movie", "get_top_movies"]
 
 
@@ -30,13 +32,13 @@ class Movie:
         return fields(self)
 
 
-def create_page_url(genre: str) -> str:
+def create_page_url(genre: Genre) -> str:
     """Generate IMDb page URL using given genre."""
 
-    return f"https://www.imdb.com/search/title/?title_type=feature&num_votes=25000,&genres={genre}&sort=user_rating,desc&view=detailed"  # noqa: 501
+    return f"https://www.imdb.com/search/title/?title_type=feature&num_votes=25000,&genres={genre.value}&sort=user_rating,desc&view=detailed"  # noqa: 501
 
 
-def download_top_movies(genre: str) -> str:
+def download_top_movies(genre: Genre) -> str:
     """Download HTML markup for top-50 movies by genre."""
 
     page_url = create_page_url(genre)
@@ -66,7 +68,7 @@ def extract_movie_header(soup: BeautifulSoup) -> Tuple[str, str]:
 
 
 def extract_movie_meta(soup: BeautifulSoup) -> Tuple[int, str, Optional[str]]:
-    """Extract movie runtime, genre, certificate (if present) from `BeautifulSoup` object."""
+    """Extract movie runtime and certificate (if present) from `BeautifulSoup` object."""
 
     meta = soup.find("p", class_="text-muted")
 
@@ -74,14 +76,11 @@ def extract_movie_meta(soup: BeautifulSoup) -> Tuple[int, str, Optional[str]]:
     runtime = runtime_with_suffix[:-4]
     runtime = int(runtime)
 
-    genres = meta.find("span", class_="genre").get_text()
-    genre = genres.split(", ")[0].lstrip("\n")
-
     certificate = None
     if certificate_element := meta.find("span", class_="certificate"):
         certificate = certificate_element.get_text()
 
-    return runtime, genre, certificate
+    return runtime, certificate
 
 
 def extract_movie_rating_bar(soup: BeautifulSoup) -> Tuple[float, Optional[int]]:
@@ -118,22 +117,22 @@ def extract_movie_extra(soup: BeautifulSoup) -> Tuple[int, Optional[float]]:
     return votes, gross
 
 
-def extract_movie(soup: BeautifulSoup) -> Movie:
-    """Extract movie info from `BeautifulSoup` object into `Movie` dataclass."""
+def extract_movie(soup: BeautifulSoup, genre: Genre) -> Movie:
+    """Extract movie of with `genre` from `BeautifulSoup` object into `Movie` dataclass."""
 
     title, year = extract_movie_header(soup)
-    runtime, genre, certificate = extract_movie_meta(soup)
+    runtime, certificate = extract_movie_meta(soup)
     rating, metascore = extract_movie_rating_bar(soup)
     votes, gross = extract_movie_extra(soup)
 
     return Movie(
-        title, genre, rating, year, runtime, votes, metascore, certificate, gross
+        title, genre.value, rating, year, runtime, votes, metascore, certificate, gross
     )
 
 
-def get_top_movies(genre: str) -> List[Movie]:
+def get_top_movies(genre: Genre) -> List[Movie]:
     """Download and parse top-50 movies into a list of `Movie` dataclasses."""
 
     html = download_top_movies(genre)
     soup = parse_top_movies(html)
-    return [extract_movie(result) for result in soup]
+    return [extract_movie(result, genre) for result in soup]
