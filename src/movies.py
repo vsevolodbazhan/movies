@@ -1,10 +1,10 @@
-from dataclasses import dataclass
-from typing import Optional, Tuple
+from dataclasses import astuple, dataclass, fields
+from typing import List, Optional, Tuple
 
 import requests
 from bs4 import BeautifulSoup, ResultSet
 
-__all__ = ["Movie", "download_top_movies", "extract_top_movies", "extract_movie"]
+__all__ = ["Movie", "get_top_movies"]
 
 
 @dataclass
@@ -20,6 +20,14 @@ class Movie:
     metascore: Optional[int]
     certificate: Optional[str]
     gross: Optional[float]
+
+    @property
+    def data(self):
+        return astuple(self)
+
+    @property
+    def fields(self):
+        return fields(self)
 
 
 def create_page_url(genre: str) -> str:
@@ -38,14 +46,14 @@ def download_top_movies(genre: str) -> str:
 
 
 def parse_top_movies(html: str) -> ResultSet:
-    """Parse downloaded HTML into BeautifulSoup object."""
+    """Parse downloaded HTML into `BeautifulSoup` object."""
 
     soup = BeautifulSoup(html, "html.parser")
     return soup.find_all("div", class_="lister-item-content")
 
 
 def extract_movie_header(soup: BeautifulSoup) -> Tuple[str, str]:
-    """Extract movie title and year from BeautifulSoup object."""
+    """Extract movie title and year from `BeautifulSoup` object."""
 
     header = soup.find("h3", class_="lister-item-header")
 
@@ -58,7 +66,7 @@ def extract_movie_header(soup: BeautifulSoup) -> Tuple[str, str]:
 
 
 def extract_movie_meta(soup: BeautifulSoup) -> Tuple[int, str, Optional[str]]:
-    """Extract movie runtime, genre, certificate (if present) from BeautifulSoup object."""
+    """Extract movie runtime, genre, certificate (if present) from `BeautifulSoup` object."""
 
     meta = soup.find("p", class_="text-muted")
 
@@ -77,7 +85,7 @@ def extract_movie_meta(soup: BeautifulSoup) -> Tuple[int, str, Optional[str]]:
 
 
 def extract_movie_rating_bar(soup: BeautifulSoup) -> Tuple[float, Optional[int]]:
-    """Extract movie rating and metascore (if present) from BeautifulSoup object."""
+    """Extract movie rating and metascore (if present) from `BeautifulSoup` object."""
 
     rating_bar = soup.find("div", class_="ratings-bar")
 
@@ -93,7 +101,7 @@ def extract_movie_rating_bar(soup: BeautifulSoup) -> Tuple[float, Optional[int]]
 
 
 def extract_movie_extra(soup: BeautifulSoup) -> Tuple[int, Optional[float]]:
-    """Extract movie votes and gross (if present) from BeautifulSoup object."""
+    """Extract movie votes and gross (if present) from `BeautifulSoup`  object."""
 
     extra = soup.find("p", class_="sort-num_votes-visible")
     extra_elements = extra.find_all("span", attrs={"name": "nv"})
@@ -111,7 +119,7 @@ def extract_movie_extra(soup: BeautifulSoup) -> Tuple[int, Optional[float]]:
 
 
 def extract_movie(soup: BeautifulSoup) -> Movie:
-    """Extract movie info from BeautifulSoup object into Movie dataclass."""
+    """Extract movie info from `BeautifulSoup` object into `Movie` dataclass."""
 
     title, year = extract_movie_header(soup)
     runtime, genre, certificate = extract_movie_meta(soup)
@@ -121,3 +129,11 @@ def extract_movie(soup: BeautifulSoup) -> Movie:
     return Movie(
         title, genre, rating, year, runtime, votes, metascore, certificate, gross
     )
+
+
+def get_top_movies(genre: str) -> List[Movie]:
+    """Download and parse top-50 movies into a list of `Movie` dataclasses."""
+
+    html = download_top_movies(genre)
+    soup = parse_top_movies(html)
+    return [extract_movie(result) for result in soup]
