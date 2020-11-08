@@ -35,11 +35,11 @@ class LoadTopMovies(luigi.Task):
 
 
 @requires(LoadTopMovies)
-class CopyMoviesToSQLTable(CopyToTable):
+class CopyMoviesToSQLite(CopyToTable):
     table = "TopMovie"
     connection_string = f"sqlite:///top_movies.db"
     columns = [
-        (["id", Integer()], {"primary_key": True}),
+        (["id", Integer()], {"primary_key": True, "autoincrement": True}),
         (["title", String()], {}),
         (["genre", String()], {}),
         (["rating", Float()], {}),
@@ -54,12 +54,17 @@ class CopyMoviesToSQLTable(CopyToTable):
     def rows(self):
         with self.input().open("r") as input:
             df = pd.read_csv(input)
-            df.index += 1
-            df.index.name = "id"
             splitted = df.to_dict(orient="split")
 
+            # List of `None` values is used
+            # to skip `id` field when insertings values
+            # into a database table.
+            # That allows to generate IDs automatically using
+            # autoincrement.
+            empty_ids = [None] * len(splitted["data"])
+
             rows = []
-            for id, values in zip(splitted["index"], splitted["data"]):
+            for id, values in zip(empty_ids, splitted["data"]):
                 rows.append([id, *values])
 
             return rows
