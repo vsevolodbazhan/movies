@@ -1,24 +1,23 @@
 import csv
+import glob
 import os
+from ast import literal_eval
 
 import luigi
 import pandas as pd
-from luigi.contrib.sqla import CopyToTable
+from luigi.contrib.mongodb import MongoCollectionTarget
 from luigi.util import requires
-from sqlalchemy import Float, Integer, String
+from pymongo import MongoClient
 
 from .genres import Genre
 from .movies import get_top_movies
-
-MOVIE_DATA_DIR = os.environ.get("MOVIE_DATA_DIR", "movie_data")
-MOVIE_DB_NAME = os.environ.get("MOVIE_DB_NAME", "movies")
+from .settings import settings
 
 
-class LoadTopMovies(luigi.Task):
+class LoadTopMoviesByGenre(luigi.Task):
     """Download top-50 movies by `genre` and store them in .csv file."""
 
     genre = luigi.EnumParameter(enum=Genre)
-    directory_name = luigi.Parameter(default=MOVIE_DATA_DIR)
 
     @property
     def file_name(self):
@@ -35,51 +34,44 @@ class LoadTopMovies(luigi.Task):
                 writer.writerow(movie.data)
 
     def output(self):
-        return luigi.LocalTarget(os.path.join(self.directory_name, self.file_name))
+        return luigi.LocalTarget(os.path.join(settings.MOVIE_DATA_DIR, self.file_name))
 
 
-@requires(LoadTopMovies)
-class CopyMoviesToSQLite(CopyToTable):
-    """"Download top-50 movies by `genre` and load them into SQLite."""
+class LoadTopMoviesByMultipleGenre(luigi.WrapperTask):
+    """Download top-50 movies of each genre in `genres` and store them in .csv file."""
 
-    database_name = luigi.Parameter(default=MOVIE_DB_NAME)
-    table_name = luigi.Parameter(default="TopMovies")
+    genres = luigi.parameter.EnumListParameter(enum=Genre)
 
-    columns = [
-        (["id", Integer()], {"primary_key": True, "autoincrement": True}),
-        (["title", String()], {}),
-        (["rating", Float()], {}),
-        (["year", Integer()], {}),
-        (["runtime", Integer()], {}),
-        (["votes", Integer()], {}),
-        (["metascore", Integer()], {}),
-        (["certificate", String()], {}),
-        (["gross", Float()], {}),
-    ]
+    def requires(self):
+        for genre in self.genres:
+            yield LoadTopMoviesByGenre(genre=genre)
 
-    @property
-    def connection_string(self):
-        return f"sqlite:///{self.database_name}.db"
 
-    @property
-    def table(self):
-        genre = self.genre.value.capitalize()
-        return f"Top{genre}Movies"
+@requires(LoadTopMoviesByMultipleGenre)
+class CopyMoviesToMongoDB(luigi.Task):
+    """Download and load top-50 movies of each genre in `genres` to MongoDB.
 
-    def rows(self):
-        with self.input().open("r") as input:
-            df = pd.read_csv(input)
-            splitted = df.to_dict(orient="split")
+    Movies are sorted by IMDb rating and title.
+    """
 
-            # List of `None` values is used
-            # to skip `id` field when insertings values
-            # into a database table.
-            # That allows to generate IDs automatically using
-            # autoincrement.
-            empty_ids = [None] * len(splitted["data"])
+    def run(self):
+        output = self.output().get_collection()
 
-            rows = []
-            for id, values in zip(empty_ids, splitted["data"]):
-                rows.append([id, *values])
+        df = self._read_all_movies_files()
+        df.sort_values(by=["rating", "title"])
 
-            return rows
+        documents = df.to_dict(orient="records")
+        output.insert_many(documents)
+
+    def output(self):
+        client = MongoClient(settings.MONGO_HOST, settings.MONGO_PORT)
+        return MongoCollectionTarget(
+            client, settings.MONGO_INDEX, settings.MONGO_COLLECTION
+        )
+
+    def _read_all_movies_files(self):
+        files = glob.glob(os.path.join(settings.MOVIE_DATA_DIR, "*.csv"))
+        return pd.concat(self._read_movies_file(f) for f in files)
+
+    def _read_movies_file(self, filename):
+        return pd.read_csv(filename, converters={"genres": literal_eval})
