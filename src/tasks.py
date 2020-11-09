@@ -10,13 +10,15 @@ from sqlalchemy import Float, Integer, String
 from .genres import Genre
 from .movies import get_top_movies
 
+MOVIE_DATA_DIR = os.environ.get("MOVIE_DATA_DIR", "movie_data")
+MOVIE_DB_NAME = os.environ.get("MOVIE_DB_NAME", "movies")
+
 
 class LoadTopMovies(luigi.Task):
     """Download top-50 movies by `genre` and store them in .csv file."""
 
     genre = luigi.EnumParameter(enum=Genre)
-
-    directory_name = luigi.Parameter(default="movie_data")
+    directory_name = luigi.Parameter(default=MOVIE_DATA_DIR)
 
     @property
     def file_name(self):
@@ -40,12 +42,12 @@ class LoadTopMovies(luigi.Task):
 class CopyMoviesToSQLite(CopyToTable):
     """"Download top-50 movies by `genre` and load them into SQLite."""
 
-    database_name = luigi.Parameter(default="top_movies")
+    database_name = luigi.Parameter(default=MOVIE_DB_NAME)
+    table_name = luigi.Parameter(default="TopMovies")
 
     columns = [
         (["id", Integer()], {"primary_key": True, "autoincrement": True}),
         (["title", String()], {}),
-        (["genre", String()], {}),
         (["rating", Float()], {}),
         (["year", Integer()], {}),
         (["runtime", Integer()], {}),
@@ -61,7 +63,7 @@ class CopyMoviesToSQLite(CopyToTable):
 
     @property
     def table(self):
-        genre = self.genre.value.capitalize().replace("-", "")
+        genre = self.genre.value.capitalize()
         return f"Top{genre}Movies"
 
     def rows(self):
@@ -81,16 +83,3 @@ class CopyMoviesToSQLite(CopyToTable):
                 rows.append([id, *values])
 
             return rows
-
-
-class CopyMultipleGenresMoviesToSQLite(luigi.WrapperTask):
-    """Download top-50 movies by multiple `genres` and load them into SQLite.
-
-    Each genre gets a separate database table.
-    """
-
-    genres = luigi.parameter.EnumListParameter(enum=Genre)
-
-    def requires(self):
-        for genre in self.genres:
-            yield CopyMoviesToSQLite(genre=genre)
