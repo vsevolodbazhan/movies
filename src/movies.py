@@ -14,7 +14,6 @@ class Movie:
     """Movie parameters."""
 
     title: str
-    genre: str
     rating: float
     year: int
     runtime: int
@@ -117,7 +116,7 @@ def extract_movie_extra(soup: BeautifulSoup) -> Tuple[int, Optional[float]]:
     return votes, gross
 
 
-def extract_movie(soup: BeautifulSoup, genre: Genre) -> Movie:
+def extract_movie(soup: BeautifulSoup) -> Movie:
     """Extract movie of with `genre` from `BeautifulSoup` object into `Movie` dataclass."""
 
     title, year = extract_movie_header(soup)
@@ -125,9 +124,7 @@ def extract_movie(soup: BeautifulSoup, genre: Genre) -> Movie:
     rating, metascore = extract_movie_rating_bar(soup)
     votes, gross = extract_movie_extra(soup)
 
-    return Movie(
-        title, genre.value, rating, year, runtime, votes, metascore, certificate, gross
-    )
+    return Movie(title, rating, year, runtime, votes, metascore, certificate, gross)
 
 
 def get_top_movies(genre: Genre) -> List[Movie]:
@@ -135,4 +132,4 @@ def get_top_movies(genre: Genre) -> List[Movie]:
 
     html = download_top_movies(genre)
     soup = parse_top_movies(html)
-    return [extract_movie(result, genre) for result in soup]
+    return [extract_movie(result) for result in soup]
