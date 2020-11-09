@@ -14,6 +14,7 @@ class Movie:
     """Movie parameters."""
 
     title: str
+    genres: List[str]
     rating: float
     year: int
     runtime: int
@@ -75,11 +76,14 @@ def extract_movie_meta(soup: BeautifulSoup) -> Tuple[int, str, Optional[str]]:
     runtime = runtime_with_suffix[:-4]
     runtime = int(runtime)
 
+    genres = meta.find("span", class_="genre").get_text().split(", ")
+    genres = [genre.strip() for genre in genres]
+
     certificate = None
     if certificate_element := meta.find("span", class_="certificate"):
         certificate = certificate_element.get_text()
 
-    return runtime, certificate
+    return runtime, genres, certificate
 
 
 def extract_movie_rating_bar(soup: BeautifulSoup) -> Tuple[float, Optional[int]]:
@@ -120,11 +124,13 @@ def extract_movie(soup: BeautifulSoup) -> Movie:
     """Extract movie of with `genre` from `BeautifulSoup` object into `Movie` dataclass."""
 
     title, year = extract_movie_header(soup)
-    runtime, certificate = extract_movie_meta(soup)
+    runtime, genres, certificate = extract_movie_meta(soup)
     rating, metascore = extract_movie_rating_bar(soup)
     votes, gross = extract_movie_extra(soup)
 
-    return Movie(title, rating, year, runtime, votes, metascore, certificate, gross)
+    return Movie(
+        title, genres, rating, year, runtime, votes, metascore, certificate, gross
+    )
 
 
 def get_top_movies(genre: Genre) -> List[Movie]:
